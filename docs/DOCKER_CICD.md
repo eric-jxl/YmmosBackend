@@ -59,9 +59,12 @@ services:
 ### 镜像标签策略
 自动生成以下标签：
 - `latest` - 最新的 main/master 分支版本
-- `{branch}` - 分支名称
-- `v{version}` - 语义化版本号（从 git tag）
-- `{branch}-{sha}` - 分支 + commit SHA
+- `{branch}` - 分支名称（如 `main`, `develop`）
+- `pr-{number}` - Pull Request 编号
+- `v{version}` - 语义化版本号（从 git tag，如 `v1.0.0`）
+- `{major}.{minor}` - 主版本号.次版本号（如 `1.0`）
+- `{major}` - 主版本号（如 `1`）
+- `sha-{commit}` - commit SHA 前7位（如 `sha-a8845fb`）
 
 ### 使用 GitHub Container Registry
 
