@@ -43,9 +43,9 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 1440  # 24h
 
     # GitHub OAuth2
-    github_client_id: str = "Ov23liHFDhW92VVXEQlZ"
-    github_client_secret: str = "78570734f9169233641c2b2f154351a98caf2ebc"
-    github_redirect_uri: str = "https://api.ymmos.com"
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    github_redirect_uri: str = ""
 
     # TOTP rate-limit
     totp_max_failures: int = 3       # 最大连续失败次数

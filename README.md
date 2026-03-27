@@ -109,7 +109,7 @@ JWT_EXPIRE_MINUTES=1440         # Token 有效期（分钟）
 # ─── GitHub OAuth ───
 GITHUB_CLIENT_ID=xxx            # GitHub OAuth Client ID
 GITHUB_CLIENT_SECRET=xxx        # GitHub OAuth Client Secret
-GITHUB_REDIRECT_URI=https://api.ymmos.com/api/v1/auth/github/callback
+GITHUB_REDIRECT_URI=http://localhost:8000/api/v1/auth/github/callback  # GitHub OAuth 回调 URL
 
 # ─── TOTP 配置 ───
 TOTP_MAX_FAILURES=3             # TOTP 最大失败次数
