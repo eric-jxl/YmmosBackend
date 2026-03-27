@@ -1,0 +1,29 @@
+[project]
+name = "YmmosBackend"
+version = "1.0.0"
+description = "FastAPI + SQLModel layered architecture"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.135.2",
+    "sqlmodel>=0.0.37",
+    "sqlalchemy>=2.0.0",
+    "uvicorn>=0.42.0",
+    # database drivers
+    "aiosqlite>=0.20.0",
+    "asyncmy>=0.2.9",           # MySQL / MariaDB async driver
+    "asyncpg>=0.30.0",          # PostgreSQL async driver
+    "pydantic-settings>=2.8.0",
+    # auth
+    "pyjwt>=2.9.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pyotp>=2.9.0",
+    "httpx>=0.28.0",
+    # logging
+    "loguru>=0.7.0",
+    # web templates & static
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+    "aiofiles>=23.2.1",
+    "pydantic-core>=2.41.5",
+]

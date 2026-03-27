@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{{ app_name }} - 登录</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
+          rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #030712;
+            --panel: rgba(10, 18, 40, 0.88);
+            --panel-soft: rgba(255, 255, 255, 0.04);
+            --border: rgba(34, 211, 238, 0.18);
+            --border-strong: rgba(34, 211, 238, 0.45);
+            --cyan: #22d3ee;
+            --cyan-d: #06b6d4;
+            --violet: #a78bfa;
+            --violet-d: #8b5cf6;
+            --ok: #34d399;
+            --err: #f87171;
+            --warn: #fbbf24;
+            --text: #e2e8f0;
+            --dim: #94a3b8;
+            --muted: #64748b;
+            --mono: 'JetBrains Mono', monospace;
+        }
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', system-ui, sans-serif;
+            overflow: hidden;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 3px,
+                    rgba(0, 0, 0, 0.05) 3px,
+                    rgba(0, 0, 0, 0.05) 4px
+            );
+        }
+
+        .page {
+            position: relative;
+            z-index: 2;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .shell {
+            width: 980px;
+            max-width: 100%;
+            min-height: 620px;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 80px rgba(34, 211, 238, 0.06);
+            display: grid;
+            grid-template-columns: 1.08fr 1fr;
+            animation: rise .7s cubic-bezier(.16, 1, .3, 1) both;
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(22px) scale(0.985);
+            }
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .left {
+            background: linear-gradient(145deg, rgba(34, 211, 238, 0.08), rgba(139, 92, 246, 0.12));
+            border-right: 1px solid var(--border);
+            padding: 44px 38px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .left::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background-image: linear-gradient(rgba(34, 211, 238, 0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(34, 211, 238, 0.035) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        .left::after {
+            content: '';
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            right: -70px;
+            bottom: -90px;
+            border-radius: 50%;
+            pointer-events: none;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.18), transparent 70%);
+        }
+
+        .brand {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 42px;
+            height: 42px;
+            border-radius: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            background: linear-gradient(135deg, var(--cyan), var(--violet-d));
+            box-shadow: 0 0 18px rgba(34, 211, 238, 0.32);
+        }
+
+        .brand-name {
+            font-size: 21px;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            background: linear-gradient(90deg, var(--cyan), var(--violet));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .badge {
+            margin-top: 4px;
+            display: inline-block;
+            font-size: 10px;
+            color: var(--cyan);
+            letter-spacing: 1.3px;
+            border: 1px solid rgba(34, 211, 238, 0.32);
+            background: rgba(34, 211, 238, 0.12);
+            border-radius: 5px;
+            padding: 2px 7px;
+        }
+
+        .intro {
+            position: relative;
+            z-index: 1;
+            max-width: 300px;
+        }
+
+        .intro h2 {
+            line-height: 1.25;
+            font-size: 30px;
+            letter-spacing: -0.5px;
+            margin-bottom: 12px;
+        }
+
+        .intro h2 span {
+            background: linear-gradient(90deg, var(--cyan), var(--violet));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .intro p {
+            color: var(--dim);
+            line-height: 1.7;
+            font-size: 13.5px;
+        }
+
+        .selling {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            gap: 10px;
+        }
+
+        .selling div {
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: var(--dim);
+        }
+
+        .right {
+            background: var(--panel);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            padding: 30px 30px 24px;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .tab {
+            border: 0;
+            background: transparent;
+            color: var(--dim);
+            padding: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .2s, color .2s;
+        }
+
+        .tab.active {
+            color: var(--text);
+            background: linear-gradient(120deg, rgba(34, 211, 238, 0.16), rgba(139, 92, 246, 0.14));
+        }
+
+        .panel {
+            display: none;
+            flex-direction: column;
+            gap: 14px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .panel.active {
+            display: flex;
+        }
+
+        .head h3 {
+            font-size: 22px;
+            letter-spacing: -0.2px;
+        }
+
+        .head p {
+            margin-top: 4px;
+            color: var(--dim);
+            font-size: 12.5px;
+        }
+
+        .alert {
+            display: none;
+            border: 1px solid;
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 12.5px;
+            line-height: 1.45;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert.danger {
+            color: var(--err);
+            background: rgba(248, 113, 113, 0.09);
+            border-color: rgba(248, 113, 113, 0.26);
+        }
+
+        .alert.success {
+            color: var(--ok);
+            background: rgba(52, 211, 153, 0.09);
+            border-color: rgba(52, 211, 153, 0.26);
+        }
+
+        .alert.warn {
+            color: var(--warn);
+            background: rgba(251, 191, 36, 0.09);
+            border-color: rgba(251, 191, 36, 0.28);
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .field label {
+            font-size: 11.5px;
+            color: var(--dim);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .field .opt {
+            color: var(--muted);
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+
+        input.text {
+            width: 100%;
+            background: var(--panel-soft);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            outline: none;
+            font: inherit;
+            font-size: 13.5px;
+            padding: 10px 38px 10px 12px;
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        input.text.plain {
+            padding-right: 12px;
+        }
+
+        input.text::placeholder {
+            color: var(--muted);
+        }
+
+        input.text:focus {
+            border-color: var(--cyan);
+            box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.11);
+        }
+
+        input.text.err {
+            border-color: var(--err);
+            box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1);
+        }
+
+        .eye-btn {
+            position: absolute;
+            top: 50%;
+            right: 8px;
+            transform: translateY(-50%);
+            border: 0;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 3px;
+        }
+
+        .eye-btn:hover {
+            color: var(--text);
+        }
+
+        .strength {
+            height: 3px;
+            border-radius: 2px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .strength > i {
+            display: block;
+            height: 100%;
+            width: 0;
+            background: transparent;
+            transition: width .25s, background .25s;
+        }
+
+        .totp-row {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 7px;
+        }
+
+        .totp-row input {
+            width: 100%;
+            max-width: 48px;
+            height: 46px;
+            justify-self: center;
+            text-align: center;
+            border: 1px solid var(--border);
+            background: var(--panel-soft);
+            border-radius: 9px;
+            color: var(--cyan);
+            font-size: 20px;
+            font-family: var(--mono);
+            outline: none;
+            caret-color: var(--cyan);
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        .totp-row input:focus {
+            border-color: var(--cyan);
+            box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.11);
+        }
+
+        .totp-row input.filled {
+            border-color: rgba(34, 211, 238, 0.42);
+        }
+
+        .totp-row input.err-cell {
+            border-color: var(--err);
+        }
+
+        .btn {
+            width: 100%;
+            border: 0;
+            border-radius: 10px;
+            padding: 11px;
+            cursor: pointer;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: transform .2s, filter .2s, box-shadow .2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            filter: none;
+        }
+
+        .btn.primary {
+            color: #fff;
+            background: linear-gradient(135deg, var(--cyan-d), var(--violet-d));
+            box-shadow: 0 5px 18px rgba(34, 211, 238, 0.22);
+        }
+
+        .btn.primary:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.06);
+        }
+
+        .btn.ghost {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+        }
+
+        .btn.ghost:hover {
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+        }
+
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            display: none;
+            animation: spin .65s linear infinite;
+        }
+
+        .btn.loading .spinner {
+            display: block;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .bind-box {
+            position: fixed;
+            inset: 0;
+            z-index: 30;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(2, 8, 22, 0.7);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+            padding: 16px;
+        }
+
+        .bind-box.show {
+            display: flex;
+        }
+
+        .bind-dialog {
+            width: min(560px, 96vw);
+            max-height: 90vh;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(10, 18, 40, 0.96);
+            box-shadow: 0 16px 50px rgba(0, 0, 0, 0.56);
+            padding: 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .bind-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .bind-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .bind-close {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--dim);
+            padding: 5px 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .bind-close:hover {
+            color: var(--text);
+            border-color: var(--border-strong);
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .step {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--dim);
+            padding: 7px 9px;
+            font-size: 12px;
+        }
+
+        .qr {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            display: grid;
+            place-items: center;
+            min-height: 186px;
+        }
+
+        .qr-hint {
+            text-align: center;
+            color: var(--dim);
+            font-size: 11.5px;
+        }
+
+        .secret {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .secret code {
+            flex: 1;
+            word-break: break-all;
+            color: var(--cyan);
+            font-family: var(--mono);
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .copy-btn {
+            border: 1px solid rgba(34, 211, 238, 0.26);
+            border-radius: 6px;
+            background: rgba(34, 211, 238, 0.12);
+            color: var(--cyan);
+            font-size: 11.5px;
+            padding: 5px 9px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .copy-btn:hover {
+            background: rgba(34, 211, 238, 0.2);
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .bottom {
+            margin-top: auto;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+            display: grid;
+            gap: 10px;
+        }
+
+        .switch-tip {
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .switch-tip a {
+            color: var(--cyan);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .switch-tip a:hover {
+            text-decoration: underline;
+        }
+
+        .gh-note {
+            color: var(--muted);
+            text-align: center;
+            font-size: 11.5px;
+        }
+
+        @media (max-width: 860px) {
+            .shell {
+                grid-template-columns: 1fr;
+                min-height: auto;
+            }
+
+            .left {
+                display: none;
+            }
+
+            .right {
+                padding: 24px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<div class="page">
+    <div class="shell">
+        <aside class="left">
+            <div class="brand">
+                <div class="logo">⚡</div>
+                <div>
+                    <div class="brand-name">{{ app_name }}</div>
+                    <span class="badge">SECURE ACCESS</span>
+                </div>
+            </div>
+
+            <div class="intro">
+                <h2>统一身份入口<br/><span>更安全</span>，更高效</h2>
+                <p>账号密码 + 动态口令双重防护，支持 GitHub 一键登录。所有登录行为都会进行安全审计。</p>
+            </div>
+
+            <div class="selling">
+                <div>1. 支持账号密码和 TOTP 动态口令</div>
+                <div>2. 注册后可立即扫码绑定二次验证</div>
+                <div>3. 支持 GitHub OAuth2 登录</div>
+            </div>
+        </aside>
+
+        <section class="right">
+            <div class="tabs">
+                <button id="tab-login" class="tab active" type="button" onclick="switchTab('login')">登录</button>
+                <button id="tab-register" class="tab" type="button" onclick="switchTab('register')">注册</button>
+            </div>
+
+            <div id="panel-login" class="panel active">
+                <div class="head">
+                    <h3>欢迎回来</h3>
+                    <p>请输入账号密码，若已绑定请填写 6 位动态口令</p>
+                </div>
+                <div class="alert" id="al-login"></div>
+
+                <div class="field">
+                    <label for="l-user">用户名</label>
+                    <input id="l-user" class="text plain" type="text" placeholder="输入用户名" autocomplete="username"/>
+                </div>
+
+                <div class="field">
+                    <label for="l-pass">密码</label>
+                    <div class="input-wrap">
+                        <input id="l-pass" class="text" type="password" placeholder="输入密码" autocomplete="current-password"/>
+                        <button class="eye-btn" type="button" onclick="toggleEye('l-pass', this)">👁</button>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>动态口令 <span class="opt">(已绑定时必填)</span></label>
+                    <div class="totp-row" id="tr-login"></div>
+                </div>
+
+                <button class="btn primary" id="btn-login" type="button" onclick="doLogin()">
+                    <span class="spinner"></span><span>安全登录</span>
+                </button>
+
+                <p class="switch-tip">没有账号？<a href="#" onclick="switchTab('register'); return false;">去注册</a></p>
+            </div>
+
+            <div id="panel-register" class="panel">
+                <div class="head">
+                    <h3>创建账号</h3>
+                    <p>注册后可立即绑定动态口令，提升账号安全性</p>
+                </div>
+                <div class="alert" id="al-reg"></div>
+
+                <div class="field">
+                    <label for="r-user">用户名</label>
+                    <input id="r-user" class="text plain" type="text" placeholder="3-32 位，字母/数字/下划线" autocomplete="username"/>
+                </div>
+
+                <div class="field">
+                    <label for="r-pass">密码</label>
+                    <div class="input-wrap">
+                        <input id="r-pass" class="text" type="password" placeholder="至少 8 位" autocomplete="new-password" oninput="calcStrength(this)"/>
+                        <button class="eye-btn" type="button" onclick="toggleEye('r-pass', this)">👁</button>
+                    </div>
+                    <div class="strength"><i id="strength-bar"></i></div>
+                </div>
+
+                <div class="field">
+                    <label for="r-confirm">确认密码</label>
+                    <div class="input-wrap">
+                        <input id="r-confirm" class="text" type="password" placeholder="再次输入密码" autocomplete="new-password"/>
+                        <button class="eye-btn" type="button" onclick="toggleEye('r-confirm', this)">👁</button>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="r-email">邮箱 <span class="opt">(可选)</span></label>
+                    <input id="r-email" class="text plain" type="email" placeholder="your@email.com" autocomplete="email"/>
+                </div>
+
+                <button class="btn primary" id="btn-reg" type="button" onclick="doRegister()">
+                    <span class="spinner"></span><span>注册并继续</span>
+                </button>
+
+                <p class="hint">注册后会弹窗显示二维码，扫码后输入验证码完成绑定</p>
+
+                <p class="switch-tip">已有账号？<a href="#" onclick="switchTab('login'); return false;">去登录</a></p>
+            </div>
+
+            <div class="bottom">
+                {% if github_enabled %}
+                <button class="btn ghost" type="button" onclick="location.href='/api/v1/auth/github'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                    </svg>
+                    使用 GitHub 登录
+                </button>
+                <div class="gh-note">或使用 GitHub OAuth2 快速登录</div>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+</div>
+
+<div class="bind-box" id="bind-box" role="dialog" aria-modal="true" aria-label="绑定动态口令" onclick="onBindMaskClick(event)">
+    <div class="bind-dialog">
+        <div class="bind-head">
+            <div class="bind-title">绑定动态口令（TOTP）</div>
+            <button class="bind-close" type="button" onclick="closeBindModal()">关闭</button>
+        </div>
+        <div class="alert" id="al-bind"></div>
+        <div class="steps">
+            <div class="step">1. 打开认证器 App</div>
+            <div class="step">2. 扫码并输入 6 位码</div>
+        </div>
+        <div class="qr" id="qr-code"></div>
+        <div class="qr-hint" id="bind-sub">为新账号绑定 TOTP</div>
+        <div class="secret">
+            <code id="secret-text">-</code>
+            <button class="copy-btn" type="button" onclick="copySecret()">复制</button>
+        </div>
+        <div class="field">
+            <label>输入 App 显示的 6 位验证码</label>
+            <div class="totp-row" id="tr-bind"></div>
+        </div>
+        <button class="btn primary" id="btn-bind" type="button" onclick="doConfirmTotp()">
+            <span class="spinner"></span><span>验证并完成绑定</span>
+        </button>
+        <p class="hint">稍后也可关闭弹窗，之后再来完成绑定</p>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const cv = document.getElementById('bg-canvas');
+        const ctx = cv.getContext('2d');
+        const cfg = {n: 72, speed: 0.26, dist: 120, r: 1.7};
+        let w;
+        let h;
+        let dots;
+
+        function resize() {
+            w = cv.width = innerWidth;
+            h = cv.height = innerHeight;
+            if (!dots) {
+                dots = Array.from({length: cfg.n}, () => ({
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    vx: (Math.random() - 0.5) * 2 * cfg.speed,
+                    vy: (Math.random() - 0.5) * 2 * cfg.speed,
+                    r: Math.random() * (cfg.r - 0.7) + 0.7
+                }));
+            }
+        }
+
+        function frame() {
+            ctx.clearRect(0, 0, w, h);
+            const grd = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
+            grd.addColorStop(0, 'rgba(10,18,50,0.98)');
+            grd.addColorStop(0.6, 'rgba(5,10,28,0.99)');
+            grd.addColorStop(1, 'rgba(3,7,18,1)');
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, w, h);
+
+            for (let i = 0; i < dots.length; i++) {
+                for (let j = i + 1; j < dots.length; j++) {
+                    const dx = dots[i].x - dots[j].x;
+                    const dy = dots[i].y - dots[j].y;
+                    const d = Math.hypot(dx, dy);
+                    if (d < cfg.dist) {
+                        ctx.beginPath();
+                        ctx.moveTo(dots[i].x, dots[i].y);
+                        ctx.lineTo(dots[j].x, dots[j].y);
+                        ctx.strokeStyle = `rgba(34,211,238,${(1 - d / cfg.dist) * 0.28})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            dots.forEach((p) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(34,211,238,0.62)';
+                ctx.shadowColor = 'rgba(34,211,238,1)';
+                ctx.shadowBlur = 5;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > w) p.vx *= -1;
+                if (p.y < 0 || p.y > h) p.vy *= -1;
+            });
+
+            requestAnimationFrame(frame);
+        }
+
+        addEventListener('resize', resize);
+        resize();
+        frame();
+    })();
+
+    let curTab = 'login';
+    let pendingUserId = null;
+
+    function isBindModalOpen() {
+        return document.getElementById('bind-box').classList.contains('show');
+    }
+
+    function openBindModal() {
+        document.getElementById('bind-box').classList.add('show');
+        hideAlert('al-bind');
+        const first = document.querySelector('#tr-bind input');
+        if (first) setTimeout(() => first.focus(), 40);
+    }
+
+    function closeBindModal() {
+        document.getElementById('bind-box').classList.remove('show');
+    }
+
+    function onBindMaskClick(event) {
+        if (event.target && event.target.id === 'bind-box') closeBindModal();
+    }
+
+    function switchTab(name) {
+        curTab = name;
+        document.getElementById('tab-login').classList.toggle('active', name === 'login');
+        document.getElementById('tab-register').classList.toggle('active', name === 'register');
+        document.getElementById('panel-login').classList.toggle('active', name === 'login');
+        document.getElementById('panel-register').classList.toggle('active', name === 'register');
+        clearAlerts();
+    }
+
+    function esc(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function showAlert(id, type, message) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.className = `alert ${type} show`;
+        el.innerHTML = esc(message);
+    }
+
+    function hideAlert(id) {
+        const el = document.getElementById(id);
+        if (el) el.className = 'alert';
+    }
+
+    function clearAlerts() {
+        document.querySelectorAll('.alert').forEach((el) => {
+            el.className = 'alert';
+            el.textContent = '';
+        });
+    }
+
+    function setLoading(id, on) {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.classList.toggle('loading', on);
+        btn.disabled = on;
+    }
+
+    async function post(url, body) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        const data = await res.json().catch(() => ({}));
+        return {ok: res.ok, status: res.status, data};
+    }
+
+    function onSuccess(respData) {
+        const data = respData.data || respData;
+        if (data.access_token) {
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('token_type', data.token_type || 'bearer');
+            localStorage.setItem('token_exp', Date.now() + (data.expires_in || 86400) * 1000);
+        }
+        window.location.href = '/docs';
+    }
+
+    function consumeOAuthHash() {
+        const hash = window.location.hash ? window.location.hash.slice(1) : '';
+        if (!hash) return;
+
+        const params = new URLSearchParams(hash);
+        const status = params.get('oauth');
+        if (status !== 'success' && status !== 'error') return;
+
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        switchTab('login');
+
+        if (status === 'success') {
+            const token = params.get('access_token');
+            if (!token) {
+                showAlert('al-login', 'danger', 'GitHub 登录回调缺少令牌，请重试');
+                return;
+            }
+            localStorage.setItem('access_token', token);
+            localStorage.setItem('token_type', params.get('token_type') || 'bearer');
+            localStorage.setItem('token_exp', Date.now() + Number(params.get('expires_in') || 86400) * 1000);
+            showAlert('al-login', 'success', 'GitHub 登录成功，正在跳转...');
+            setTimeout(() => window.location.href = '/docs', 450);
+            return;
+        }
+
+        showAlert('al-login', 'danger', params.get('message') || 'GitHub 登录失败，请稍后重试');
+    }
+
+    function makeTotpBoxes(id, onFilled) {
+        const wrap = document.getElementById(id);
+        const boxes = [];
+        wrap.innerHTML = '';
+
+        for (let i = 0; i < 6; i++) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.inputMode = 'numeric';
+            input.maxLength = 1;
+            boxes.push(input);
+            wrap.appendChild(input);
+        }
+
+        boxes.forEach((el, idx) => {
+            el.addEventListener('input', (e) => {
+                const v = e.target.value.replace(/\D/g, '');
+                el.value = v ? v[0] : '';
+                el.classList.toggle('filled', !!el.value);
+                if (el.value && idx < 5) boxes[idx + 1].focus();
+                if (boxes.every((b) => b.value)) onFilled && onFilled();
+            });
+
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !el.value && idx > 0) {
+                    boxes[idx - 1].value = '';
+                    boxes[idx - 1].classList.remove('filled');
+                    boxes[idx - 1].focus();
+                }
+            });
+
+            el.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+                [...text.slice(0, 6)].forEach((c, i) => {
+                    boxes[i].value = c;
+                    boxes[i].classList.add('filled');
+                });
+                if (text.length >= 6 && onFilled) onFilled();
+            });
+        });
+
+        return {
+            getCode() {
+                return boxes.map((b) => b.value).join('');
+            },
+            clear() {
+                boxes.forEach((b) => {
+                    b.value = '';
+                    b.classList.remove('filled', 'err-cell');
+                });
+            }
+        };
+    }
+
+    const loginOtp = makeTotpBoxes('tr-login', null);
+    const bindOtp = makeTotpBoxes('tr-bind', null);
+
+    async function doLogin() {
+        const username = document.getElementById('l-user').value.trim();
+        const password = document.getElementById('l-pass').value;
+        const totpCode = loginOtp.getCode();
+
+        if (!username || !password) {
+            showAlert('al-login', 'warn', '请填写用户名和密码');
+            return;
+        }
+
+        hideAlert('al-login');
+        setLoading('btn-login', true);
+        try {
+            const payload = {username, password};
+            if (totpCode.length === 6) payload.totp_code = totpCode;
+
+            const {ok, status, data} = await post('/api/v1/auth/login', payload);
+            if (ok && data.code === 200) {
+                showAlert('al-login', 'success', data.msg || '登录成功，正在跳转...');
+                setTimeout(() => onSuccess(data), 450);
+                return;
+            }
+
+            // 未绑定 TOTP 需要弹窗绑定
+            const detail = data && data.data ? data.data : null;
+            if (status === 428 && detail && detail.code === 'TOTP_SETUP_REQUIRED' && detail.user_id) {
+                await startTotpSetupForUser(detail.user_id, detail.username || username);
+                return;
+            }
+
+            showAlert('al-login', 'danger', data.msg || data.detail || '用户名、密码或动态口令错误');
+            const pass = document.getElementById('l-pass');
+            pass.classList.add('err');
+            setTimeout(() => pass.classList.remove('err'), 1200);
+            loginOtp.clear();
+        } catch {
+            showAlert('al-login', 'danger', '网络异常，请稍后重试');
+        } finally {
+            setLoading('btn-login', false);
+        }
+    }
+
+    async function startTotpSetupForUser(userId, username) {
+        hideAlert('al-login');
+        try {
+            const res = await fetch(`/api/v1/auth/totp/setup/${userId}`, {method: 'POST'});
+            const resp = await res.json().catch(() => ({}));
+            if (!res.ok || resp.code !== 200) {
+                showAlert('al-login', 'danger', resp.msg || resp.detail || '无法初始化动态口令，请稍后重试');
+                return;
+            }
+
+            const data = resp.data || {};
+            pendingUserId = userId;
+            openBindModal();
+            document.getElementById('bind-sub').textContent = `为账号 "${username}" 绑定 TOTP 动态口令`;
+            document.getElementById('secret-text').textContent = data.secret || '-';
+            buildQR(data.otp_auth_uri || '');
+            bindOtp.clear();
+            showAlert('al-bind', 'warn', '该账号首次登录必须先绑定动态口令');
+        } catch {
+            showAlert('al-login', 'danger', '网络异常，无法初始化动态口令');
+        }
+    }
+
+    async function doRegister() {
+        const username = document.getElementById('r-user').value.trim();
+        const password = document.getElementById('r-pass').value;
+        const confirm = document.getElementById('r-confirm').value;
+        const email = document.getElementById('r-email').value.trim() || null;
+
+        if (!username || !password) {
+            showAlert('al-reg', 'warn', '请填写用户名和密码');
+            return;
+        }
+        if (!/^[\w]{3,32}$/.test(username)) {
+            showAlert('al-reg', 'warn', '用户名 3-32 位，仅限字母、数字、下划线');
+            return;
+        }
+        if (password.length < 8) {
+            showAlert('al-reg', 'warn', '密码不能少于 8 位');
+            return;
+        }
+        if (password !== confirm) {
+            showAlert('al-reg', 'warn', '两次密码输入不一致');
+            return;
+        }
+
+        hideAlert('al-reg');
+        setLoading('btn-reg', true);
+
+        try {
+            const {ok, data: resp} = await post('/api/v1/auth/register', {username, password, email});
+            if (!ok || resp.code !== 200) {
+                showAlert('al-reg', 'danger', resp.msg || resp.detail || '注册失败，请重试');
+                return;
+            }
+
+            const data = resp.data || {};
+            pendingUserId = data.user_id;
+            openBindModal();
+            document.getElementById('bind-sub').textContent = `为账号 "${data.username}" 绑定 TOTP 动态口令`;
+            document.getElementById('secret-text').textContent = data.totp_secret || '-';
+            buildQR(data.otp_auth_uri || '');
+            bindOtp.clear();
+            showAlert('al-reg', 'success', '注册成功，请继续完成动态口令绑定');
+        } catch {
+            showAlert('al-reg', 'danger', '网络异常，请稍后重试');
+        } finally {
+            setLoading('btn-reg', false);
+        }
+    }
+
+    async function doConfirmTotp() {
+        const code = bindOtp.getCode();
+        if (!pendingUserId) {
+            showAlert('al-bind', 'warn', '请先注册账号');
+            return;
+        }
+        if (code.length < 6) {
+            showAlert('al-bind', 'warn', '请输入完整 6 位验证码');
+            return;
+        }
+
+        hideAlert('al-bind');
+        setLoading('btn-bind', true);
+        try {
+            const {ok, data: resp} = await post(`/api/v1/auth/totp/confirm/${pendingUserId}`, {code});
+            if (ok && resp.code === 200) {
+                showAlert('al-bind', 'success', resp.msg || '绑定成功，正在登录...');
+                setTimeout(() => {
+                    closeBindModal();
+                    onSuccess(resp);
+                }, 550);
+                return;
+            }
+
+            showAlert('al-bind', 'danger', resp.msg || resp.detail || '验证码错误，请重试');
+            bindOtp.clear();
+            document.querySelectorAll('#tr-bind input').forEach((el) => {
+                el.classList.add('err-cell');
+                setTimeout(() => el.classList.remove('err-cell'), 650);
+            });
+        } catch {
+            showAlert('al-bind', 'danger', '网络异常，请稍后重试');
+        } finally {
+            setLoading('btn-bind', false);
+        }
+    }
+
+    function buildQR(uri) {
+        const el = document.getElementById('qr-code');
+        el.innerHTML = '';
+        if (!uri) {
+            el.textContent = '二维码生成失败，请重试';
+            return;
+        }
+        new QRCode(el, {
+            text: uri,
+            width: 172,
+            height: 172,
+            colorDark: '#0f1726',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    }
+
+    function copySecret() {
+        const text = document.getElementById('secret-text').textContent;
+        if (!text || text === '-') return;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.querySelector('.copy-btn');
+            if (!btn) return;
+            btn.textContent = '已复制';
+            setTimeout(() => {
+                btn.textContent = '复制';
+            }, 1400);
+        });
+    }
+
+    function toggleEye(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.textContent = show ? '🙈' : '👁';
+    }
+
+    function calcStrength(input) {
+        const v = input.value;
+        let s = 0;
+        if (v.length >= 8) s++;
+        if (v.length >= 12) s++;
+        if (/[A-Z]/.test(v)) s++;
+        if (/[0-9]/.test(v)) s++;
+        if (/[^A-Za-z0-9]/.test(v)) s++;
+
+        const pct = [0, 20, 45, 65, 85, 100][s];
+        const color = ['', '#f87171', '#fbbf24', '#fbbf24', '#34d399', '#22d3ee'][s];
+        const bar = document.getElementById('strength-bar');
+        bar.style.width = `${pct}%`;
+        bar.style.background = color;
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isBindModalOpen()) {
+            closeBindModal();
+            return;
+        }
+
+        if (e.key === 'Enter') {
+            if (isBindModalOpen()) {
+                doConfirmTotp();
+                return;
+            }
+            if (curTab === 'login') doLogin();
+            if (curTab === 'register') doRegister();
+        }
+    });
+
+    consumeOAuthHash();
+</script>
+</body>
+</html>
+
