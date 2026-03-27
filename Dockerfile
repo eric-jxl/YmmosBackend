@@ -4,20 +4,25 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 WORKDIR /build
 
 # Enable bytecode compilation for uv
-ENV UV_COMPILE_BYTECODE=1
-ENV UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_PROGRESS=1 \
+    PYTHONUNBUFFERED=1
 
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv
-RUN uv sync --frozen --no-install-project --no-dev
+# Use cache mount to speed up builds and reduce failures
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev
 
 # Copy application source
 COPY . .
 
 # Sync project
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

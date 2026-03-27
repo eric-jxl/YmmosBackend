@@ -50,11 +50,44 @@ services:
 
 项目配置了自动化的 Docker 镜像构建和推送流程。
 
-### 触发条件
-- **Push 到 main/master 分支**: 自动构建并推送镜像
-- **创建 tag (v*)**: 按版本号构建发布镜像
+### 两个 Workflow
+
+#### 1. 主 Workflow：`docker-build.yml`（快速构建）
+
+**适用场景**：日常开发、快速迭代
+
+**触发条件**：
+- **Push 到 main/master 分支**: 自动构建并推送镜像（仅 amd64）
+- **创建 tag (v*)**: 按版本号构建发布镜像（amd64 + arm64）
 - **Pull Request**: 构建但不推送（验证构建成功）
 - **手动触发**: 通过 GitHub Actions 界面手动运行
+
+**构建平台**：
+- 默认：只构建 `linux/amd64`（快速、稳定）
+- 版本标签（v*）：构建 `linux/amd64` 和 `linux/arm64`
+
+#### 2. 多平台 Workflow：`docker-build-multiplatform.yml`
+
+**适用场景**：需要完整多平台支持时
+
+**触发条件**：
+- Release 发布
+- 手动触发
+
+**构建平台**：`linux/amd64` + `linux/arm64`
+
+### 为什么这样设计？
+
+在多平台构建时，Docker 使用 QEMU 模拟器运行非原生架构（如 ARM64），可能导致：
+- ❌ 构建时间显著增加（3-10倍）
+- ❌ QEMU 模拟器兼容性问题
+- ❌ 某些依赖在模拟环境下失败
+
+因此我们采用：
+- ✅ 日常开发：仅 amd64，快速反馈
+- ✅ 正式发布：完整多平台支持
+
+详见 [故障排查文档](./TROUBLESHOOTING.md#1-qemu-模拟器构建失败-)
 
 ### 镜像标签策略
 自动生成以下标签：
