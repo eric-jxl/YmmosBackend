@@ -20,22 +20,22 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Copy application source
 COPY . .
 
-# Sync project
+# Sync project (installs the project itself)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-# Compile all Python source files to bytecode (.pyc)
-# -b: legacy option for Python 3.5+, writes .pyc next to .py
-# -q: quiet mode
-# -o: optimization level (0=default, 1=remove asserts, 2=remove docstrings)
-# Step 1: Compile all application code to .pyc
-# Step 2: Remove .py source files (keep setup.py and exclude .venv)
-# Step 3: Compile venv site-packages (if not already compiled by uv)
-# Step 4: Remove .py files from site-packages
-RUN python -m compileall -b -q -o 2 . && \
-    find . -type f -name "*.py" ! -name "setup.py" ! -path "./.venv/*" -delete && \
-    python -m compileall -b -q -o 2 .venv/lib/python3.12/site-packages/ || true && \
-    find .venv/lib/python3.12/site-packages/ -type f -name "*.py" -delete || true
+# Compile application code to bytecode (.pyc) with optimization level 2
+# Note: We compile the application directories but keep .venv completely intact
+# This ensures uvicorn and all dependencies work properly
+RUN python -m compileall -q -o 2 \
+    core/ dao/ db/ model/ routes/ schema/ service/ main.py || true
+
+# Optional: Remove application .py files to reduce size (keep .pyc)
+# Keep __init__.py files as they may be needed for package discovery
+# Never touch .venv directory
+RUN find core/ dao/ db/ model/ routes/ schema/ service/ -type f -name "*.py" \
+    ! -name "__init__.py" \
+    -delete 2>/dev/null || true
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
@@ -47,11 +47,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Copy virtual environment from builder (only .pyc files)
+# Copy virtual environment with all dependencies intact
 COPY --from=builder /build/.venv /app/.venv
 
-# Copy application bytecode (only .pyc files, no .py source)
-COPY --from=builder /build /app
+# Copy application bytecode and remaining necessary files
+COPY --from=builder /build/core /app/core
+COPY --from=builder /build/dao /app/dao
+COPY --from=builder /build/db /app/db
+COPY --from=builder /build/model /app/model
+COPY --from=builder /build/routes /app/routes
+COPY --from=builder /build/schema /app/schema
+COPY --from=builder /build/service /app/service
+COPY --from=builder /build/main.py* /app/
+COPY --from=builder /build/static /app/static
+COPY --from=builder /build/templates /app/templates
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data
 
 EXPOSE 8000
 
