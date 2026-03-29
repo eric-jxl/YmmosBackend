@@ -140,15 +140,19 @@ def shutdown_logging() -> None:
     优雅关闭所有日志处理器，确保队列中的日志全部写入，释放资源。
     在应用 shutdown 时调用，避免 multiprocessing 资源泄漏警告。
     """
-    logger.info("Shutting down logging handlers...")
-    for handler_id in _handler_ids:
-        try:
-            logger.remove(handler_id)
-        except ValueError:
-            pass  # handler 可能已被移除
-    _handler_ids.clear()
-    # 完成所有待写入的日志
-    logger.complete()
+    try:
+        logger.info("正在关闭日志处理器...")
+        for handler_id in _handler_ids:
+            try:
+                logger.remove(handler_id)
+            except ValueError:
+                pass  # handler 可能已被移除
+        _handler_ids.clear()
+        # 注意：logger.complete() 可能会长时间阻塞，这里不调用以避免卡住
+        # 大部分日志应该已经通过 remove() 刷新到磁盘了
+    except Exception as e:
+        # 确保即使日志关闭失败也不阻塞应用退出
+        print(f"Warning: Error during logging shutdown: {e}", file=sys.stderr)
 
 
 

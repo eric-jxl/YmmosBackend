@@ -64,6 +64,8 @@ COPY --from=builder /build/templates /app/templates
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/data
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8000
 

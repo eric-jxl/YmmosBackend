@@ -150,14 +150,11 @@ async def init_db() -> None:
 
 async def close_db() -> None:
     """关闭并释放数据库连接池。"""
-    from loguru import logger
     try:
-        logger.info("正在关闭数据库连接池...")
         await engine.dispose()
-        logger.info("✅ 数据库连接池已释放")
-    except Exception as e:
-        logger.error(f"⚠️ 关闭数据库连接池时出错: {e}")
-        raise
+    except Exception:
+        # 忽略错误，避免阻塞关闭流程
+        pass
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

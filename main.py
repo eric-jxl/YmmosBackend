@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import asyncio
-import signal
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -36,26 +35,12 @@ setup_logging(
 
 templates = Jinja2Templates(directory="templates")
 
-# 全局标志用于优雅关闭
-_shutdown_event = asyncio.Event()
-
-
-def _handle_shutdown_signal(signum: int, frame):
-    """信号处理器：捕获 SIGINT/SIGTERM，触发优雅关闭"""
-    sig_name = signal.Signals(signum).name
-    logger.warning(f"收到终止信号 {sig_name}，开始优雅关闭...")
-    _shutdown_event.set()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理：启动、关闭资源"""
     # ── 启动 ──
     logger.info("🚀 应用启动中...")
-    
-    # 注册信号处理器
-    signal.signal(signal.SIGINT, _handle_shutdown_signal)
-    signal.signal(signal.SIGTERM, _handle_shutdown_signal)
     
     # 初始化数据库
     await init_db()
@@ -66,12 +51,14 @@ async def lifespan(app: FastAPI):
     # ── 关闭 ──
     logger.info("🛑 应用关闭中...")
     
-    # 关闭数据库连接
+    # 关闭数据库连接（设置较短超时避免卡住）
     try:
-        await asyncio.wait_for(close_db(), timeout=5.0)
+        await asyncio.wait_for(close_db(), timeout=3.0)
         logger.info("✅ 数据库连接已关闭")
     except asyncio.TimeoutError:
-        logger.error("⚠️ 数据库关闭超时")
+        logger.warning("⚠️ 数据库关闭超时，强制继续")
+    except Exception as e:
+        logger.error(f"⚠️ 数据库关闭错误: {e}")
     
     # 关闭日志处理器（避免 semaphore 泄漏）
     shutdown_logging()
@@ -259,7 +246,7 @@ if __name__ == "__main__":
         "port": settings.app_port,
         "reload": effective_reload,
         "log_level": "debug" if settings.is_development else "info",
-        "timeout_graceful_shutdown": 10,  # 优雅关闭超时时间（秒）
+        "timeout_graceful_shutdown": 5,  # 优雅关闭超时时间（秒）
     }
     # reload 模式下 uvicorn 会忽略 workers，这里显式避免该冲突。
     if not effective_reload:
@@ -270,6 +257,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("⌨️  收到键盘中断，正在退出...")
     finally:
-        # 确保日志完全写入
         logger.info("🏁 服务器已停止")
-        shutdown_logging()
