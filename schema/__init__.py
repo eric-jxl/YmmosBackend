@@ -1,7 +1,26 @@
-from schema.user import UserCreate, UserRead, UserUpdate
-from schema.auth import TOTPLoginRequest, TOTPSetupResponse, TokenResponse, GithubLoginUrlResponse
+
+from schema.user import UserCreate, UserUpdate
+from schema.auth import (
+    RegisterRequest,
+    RegisterResponse,
+    TOTPLoginRequest,
+    TOTPSetupResponse,
+    TOTPConfirmRequest,
+    CombinedLoginRequest,
+    TokenResponse,
+)
+from schema.response import ApiResponse, PaginationResponse
 
 __all__ = [
-    "UserCreate", "UserUpdate", "UserRead",
-    "TOTPLoginRequest", "TOTPSetupResponse", "TokenResponse", "GithubLoginUrlResponse",
+    "UserCreate",
+    "UserUpdate",
+    "RegisterRequest",
+    "RegisterResponse",
+    "TOTPLoginRequest",
+    "TOTPSetupResponse",
+    "TOTPConfirmRequest",
+    "CombinedLoginRequest",
+    "TokenResponse",
+    "ApiResponse",
+    "PaginationResponse",
 ]

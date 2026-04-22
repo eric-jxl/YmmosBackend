@@ -1,13 +1,11 @@
-from sqlmodel.ext.asyncio.session import AsyncSession
 from datetime import datetime
 
-from passlib.context import CryptContext
+from core import hash_password, BadRequestError
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from dao.user_dao import UserDAO
 from model.user import User
 from schema.user import UserCreate, UserUpdate
-
-_pwd_ctx = CryptContext(schemes=["scrypt"], deprecated="auto")
 
 
 class UserService:
@@ -17,12 +15,12 @@ class UserService:
     async def create_user(self, session: AsyncSession, payload: UserCreate) -> User:
         existing_user = await self.user_dao.get_by_username(session, payload.username)
         if existing_user:
-            raise ValueError("用户名已存在")
+            raise BadRequestError(msg="用户名已存在")
 
         if payload.email:
             existing_email = await self.user_dao.get_by_email(session, payload.email)
             if existing_email:
-                raise ValueError("邮箱已被注册")
+                raise BadRequestError(msg="邮箱已被注册")
 
         payload_data = payload.model_dump()
         if not payload_data.get("created_by"):
@@ -31,7 +29,7 @@ class UserService:
 
         # 密码哈希（bcrypt）
         if payload_data.get("password"):
-            payload_data["password"] = _pwd_ctx.hash(payload_data["password"])
+            payload_data["password"] = hash_password(payload_data["password"])
 
         user = User(**payload_data)
         return await self.user_dao.create(session, user)
@@ -71,12 +69,12 @@ class UserService:
         if "username" in update_data:
             existing_user = await self.user_dao.get_by_username(session, update_data["username"])
             if existing_user and existing_user.id != user_id:
-                raise ValueError("用户名已存在")
+                raise BadRequestError(msg="用户名已存在")
 
         if "email" in update_data and update_data["email"]:
             existing_email = await self.user_dao.get_by_email(session, update_data["email"])
             if existing_email and existing_email.id != user_id:
-                raise ValueError("邮箱已被注册")
+                raise BadRequestError(msg="邮箱已被注册")
 
         return await self.user_dao.update(session, user_id, update_data)
 

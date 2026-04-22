@@ -18,8 +18,12 @@ from core import (
     get_settings,
     setup_logging,
     shutdown_logging,
+    APIException,
+)
+from core.exception_handlers import (
     validation_exception_handler,
     global_exception_handler,
+    api_exception_handler,
 )
 from db import close_db, init_db
 from routes import api_router
@@ -86,6 +90,7 @@ app.add_middleware(
 # 全局异常处理器：统一响应格式
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(Exception, global_exception_handler)
+app.add_exception_handler(APIException, api_exception_handler)
 
 # 静态资源
 app.mount("/static", StaticFiles(directory="static"), name="static")

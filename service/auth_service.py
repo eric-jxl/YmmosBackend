@@ -7,20 +7,29 @@
   - JWT 签发
 所有安全事件均写入 auth_logs 并通过 security_logger 输出到独立日志文件。
 """
-import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 from urllib.parse import urlencode
 
 import httpx
 import jwt
-import pyotp
 from loguru import logger
-from passlib.context import CryptContext
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from core.settings import get_settings
-from core.logger import security_logger
+from core import (
+    get_settings,
+    security_logger,
+
+    generate_totp_secret,
+    create_totp_uri,
+    generate_state_token,
+    verify_password,
+    hash_password,
+    verify_totp_code,
+    generate_jti_token,
+    PreconditionRequired,
+    BadRequestError,
+)
 from dao.auth_log_dao import AuthLogDAO
 from dao.user_dao import UserDAO
 from model.auth_log import AuthEvent, AuthLog
@@ -32,14 +41,6 @@ from schema.auth import (
 )
 
 settings = get_settings()
-_pwd_ctx = CryptContext(schemes=["scrypt"], deprecated="auto")
-
-
-class AuthFlowError(ValueError):
-    def __init__(self, status_code: int, detail: dict[str, object]) -> None:
-        super().__init__(str(detail))
-        self.status_code = status_code
-        self.detail = detail
 
 
 class AuthService:
@@ -58,7 +59,7 @@ class AuthService:
             "username": username,
             "exp": expire,
             "iat": datetime.now(UTC),
-            "jti": secrets.token_hex(16),  # 防重放唯一标识
+            "jti": generate_jti_token(),  # 防重放唯一标识
         }
         token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
         return TokenResponse(
@@ -75,17 +76,14 @@ class AuthService:
     ) -> TOTPSetupResponse:
         user = await self._user_dao.get_by_id(session, user_id)
         if user is None:
-            raise ValueError("用户不存在")
+            raise BadRequestError(msg="用户不存在")
 
         if user.totp_enabled and user.totp_secret:
-            raise ValueError("该账号已绑定动态口令")
+            raise BadRequestError(msg="该账号已绑定动态口令")
 
         # 若已有未确认 secret 则复用，避免频繁刷新导致用户扫描失效。
-        secret = user.totp_secret or pyotp.random_base32()
-        uri = pyotp.TOTP(secret).provisioning_uri(
-            name=user.username,
-            issuer_name=settings.app_name,
-        )
+        secret = user.totp_secret or generate_totp_secret()
+        uri = create_totp_uri(secret, user.username, settings.app_name)
 
         await self._user_dao.update(
             session, user_id, {"totp_secret": secret, "totp_enabled": False}
@@ -118,13 +116,13 @@ class AuthService:
         email = payload.email.strip().lower() if payload.email else None
 
         if await self._user_dao.get_by_username(session, username):
-            raise ValueError("用户名已存在")
+            raise BadRequestError(msg="用户名已存在")
         if email and await self._user_dao.get_by_email(session, email):
-            raise ValueError("邮箱已被注册")
+            raise BadRequestError(msg="邮箱已被注册")
 
-        hashed_pw = _pwd_ctx.hash(payload.password)
+        hashed_pw = hash_password(payload.password)
         # 注册时直接写入 TOTP secret，保证 users 表中立即存在该用户的密钥记录。
-        secret = pyotp.random_base32()
+        secret = generate_totp_secret()
         user = User(
             username=username,
             password=hashed_pw,
@@ -137,10 +135,7 @@ class AuthService:
         )
         user = await self._user_dao.create(session, user)
 
-        uri = pyotp.TOTP(secret).provisioning_uri(
-            name=user.username,
-            issuer_name=settings.app_name,
-        )
+        uri = create_totp_uri(secret, user.username, settings.app_name)
 
         security_logger.info("REGISTER | username={} | ip={}", username, ip)
         await self._write_log(
@@ -167,13 +162,13 @@ class AuthService:
     ) -> TokenResponse:
         user = await self._user_dao.get_by_id(session, user_id)
         if not user or not user.totp_secret:
-            raise ValueError("用户不存在或未初始化 TOTP")
+            raise BadRequestError(msg="用户不存在或未初始化 TOTP")
         if user.totp_enabled:
-            raise ValueError("TOTP 已绑定，请直接登录")
+            raise BadRequestError(msg="TOTP 已绑定，请直接登录")
 
-        totp = pyotp.TOTP(user.totp_secret)
-        if not totp.verify(code, valid_window=1):
-            raise ValueError("验证码错误，请检查手机时间后重试")
+        # totp 验证移至 create_totp_uri 调用处
+        if not verify_totp_code(user.totp_secret, code, valid_window=1):
+            raise BadRequestError(msg="验证码错误，请检查手机时间后重试")
 
         await self._user_dao.update(session, user_id, {"totp_enabled": True})
 
@@ -205,14 +200,14 @@ class AuthService:
                 session, username, "PASSWORD+TOTP", ip, user_agent, "User not found or no password"
             )
             security_logger.warning("LOGIN_FAILED | username={} | method=COMBINED | ip={}", username, ip)
-            raise ValueError("用户名或密码错误")
+            raise BadRequestError(msg="用户名或密码错误")
 
-        if not _pwd_ctx.verify(payload.password, user.password):
+        if not verify_password(payload.password, user.password):
             await self._write_failure(
                 session, username, "PASSWORD+TOTP", ip, user_agent, "Invalid password", user.id
             )
             security_logger.warning("LOGIN_FAILED | username={} | method=COMBINED | ip={}", username, ip)
-            raise ValueError("用户名或密码错误")
+            raise BadRequestError(msg="用户名或密码错误")
 
         # 强制动态口令：未绑定时先引导绑定。
         if not user.totp_secret or not user.totp_enabled:
@@ -226,9 +221,9 @@ class AuthService:
                 user_agent=user_agent,
                 detail="totp_setup_required",
             )
-            raise AuthFlowError(
-                status_code=428,
-                detail={
+            raise PreconditionRequired(
+                msg="该账号尚未绑定动态口令，请先扫码绑定",
+                data={
                     "code": "TOTP_SETUP_REQUIRED",
                     "message": "该账号尚未绑定动态口令，请先扫码绑定",
                     "user_id": user.id,
@@ -238,9 +233,9 @@ class AuthService:
 
         totp_code = (payload.totp_code or "").strip()
         if not totp_code:
-            raise ValueError("动态口令为必填项，请输入 6 位验证码")
-        totp = pyotp.TOTP(user.totp_secret)
-        if not totp.verify(totp_code, valid_window=1):
+            raise BadRequestError(msg="动态口令为必填项，请输入 6 位验证码")
+        # totp 验证移至 create_totp_uri 调用处
+        if not verify_totp_code(user.totp_secret, totp_code, valid_window=1):
             failure_count = await self._log_and_count_failure(
                 session, username, user.id, "TOTP", ip, user_agent
             )
@@ -250,8 +245,8 @@ class AuthService:
                 username, ip, failure_count, settings.totp_max_failures,
             )
             if remaining <= 0:
-                raise ValueError(f"令牌错误，账户已临时锁定 {settings.totp_lockout_seconds} 秒，请稍后重试")
-            raise ValueError(f"动态令牌错误，还有 {remaining} 次尝试机会")
+                raise BadRequestError(msg=f"令牌错误，账户已临时锁定 {settings.totp_lockout_seconds} 秒，请稍后重试")
+            raise BadRequestError(msg=f"动态令牌错误，还有 {remaining} 次尝试机会")
 
         await self._write_log(
             session, event=AuthEvent.LOGIN_SUCCESS, method="PASSWORD+TOTP",
@@ -279,16 +274,16 @@ class AuthService:
             security_logger.warning(
                 "LOGIN_FAILED | username={} | method=PASSWORD | ip={}", username, ip
             )
-            raise ValueError("用户名或密码错误")
+            raise BadRequestError(msg="用户名或密码错误")
 
-        if not _pwd_ctx.verify(payload.password, user.password):
+        if not verify_password(payload.password, user.password):
             await self._write_failure(
                 session, username, "PASSWORD", ip, user_agent, "Invalid password", user.id
             )
             security_logger.warning(
                 "LOGIN_FAILED | username={} | method=PASSWORD | ip={}", username, ip
             )
-            raise ValueError("用户名或密码错误")
+            raise BadRequestError(msg="用户名或密码错误")
 
         await self._write_log(
             session,
@@ -323,11 +318,11 @@ class AuthService:
         if user is None or not user.is_active or not user.totp_enabled or not user.totp_secret:
             await self._write_failure(session, username, "TOTP", ip, user_agent,
                                       "User not found or TOTP not configured")
-            raise ValueError("用户名或令牌错误")
+            raise BadRequestError(msg="用户名或令牌错误")
 
         # 3. 校验 TOTP（valid_window=1 允许前后 30 秒的时钟偏差）
-        totp = pyotp.TOTP(user.totp_secret)
-        if not totp.verify(payload.code, valid_window=1):
+        # totp 验证移至 create_totp_uri 调用处
+        if not verify_totp_code(user.totp_secret, payload.code, valid_window=1):
             failure_count = await self._log_and_count_failure(
                 session, username, user.id, "TOTP", ip, user_agent
             )
@@ -337,10 +332,10 @@ class AuthService:
                 username, ip, failure_count, settings.totp_max_failures,
             )
             if remaining <= 0:
-                raise ValueError(
+                raise BadRequestError(msg=
                     f"令牌错误，账户已临时锁定 {settings.totp_lockout_seconds} 秒，请稍后重试"
                 )
-            raise ValueError(f"令牌错误，还有 {remaining} 次尝试机会")
+            raise BadRequestError(msg=f"令牌错误，还有 {remaining} 次尝试机会")
 
         # 4. 登录成功
         await self._write_log(
@@ -363,10 +358,10 @@ class AuthService:
     def _resolve_github_redirect_uri() -> str:
         redirect_uri = (settings.github_redirect_uri or "").strip()
         if not redirect_uri:
-            raise ValueError("GitHub OAuth 未配置回调地址")
+            raise BadRequestError(msg="GitHub OAuth 未配置回调地址")
 
         if "//" not in redirect_uri:
-            raise ValueError("GitHub OAuth 回调地址格式不正确")
+            raise BadRequestError(msg="GitHub OAuth 回调地址格式不正确")
 
         if redirect_uri.endswith("/"):
             redirect_uri = redirect_uri[:-1]
@@ -379,7 +374,7 @@ class AuthService:
     @staticmethod
     def get_github_auth_url(state: str) -> str:
         if not settings.github_client_id or not settings.github_client_secret:
-            raise ValueError("GitHub OAuth 未正确配置")
+            raise BadRequestError(msg="GitHub OAuth 未正确配置")
 
         query = urlencode(
             {
@@ -399,7 +394,7 @@ class AuthService:
             user_agent: str,
     ) -> TokenResponse:
         if not settings.github_client_id or not settings.github_client_secret:
-            raise ValueError("GitHub OAuth 未正确配置")
+            raise BadRequestError(msg="GitHub OAuth 未正确配置")
 
         redirect_uri = self._resolve_github_redirect_uri()
 
@@ -418,7 +413,7 @@ class AuthService:
             token_resp.raise_for_status()
             gh_access_token = token_resp.json().get("access_token")
             if not gh_access_token:
-                raise ValueError("GitHub OAuth 授权码无效或已过期")
+                raise BadRequestError(msg="GitHub OAuth 授权码无效或已过期")
 
             # 2. 获取 GitHub 用户信息
             user_resp = await client.get(
@@ -516,7 +511,7 @@ class AuthService:
             "TOTP_LOCKED | username={} | ip={} | failures={} | wait={}s",
             username, ip, failure_count, wait_secs,
         )
-        raise ValueError(
+        raise BadRequestError(msg=
             f"尝试次数过多，请 {wait_secs} 秒后重试"
         )
 

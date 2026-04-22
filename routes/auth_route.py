@@ -5,7 +5,6 @@
   GET  /auth/github                 - 跳转 GitHub 授权页
   GET  /auth/github/callback        - GitHub 回调，换取 JWT
 """
-import secrets
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -13,6 +12,14 @@ from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from db import get_session
+from core import (
+    get_client_ip,
+    generate_state_token,
+    BadRequestError,
+    AuthenticationError,
+    PreconditionRequired,
+)
+from service.auth_service import AuthService
 from schema.auth import (
     CombinedLoginRequest,
     TOTPLoginRequest,
@@ -23,19 +30,12 @@ from schema.auth import (
     TOTPConfirmRequest,
 )
 from schema.response import ApiResponse
-from service.auth_service import AuthFlowError, AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _auth_service = AuthService()
 
 
-def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
-
-
+# ── 注册 ──────────────────────────────────────────────────────────────────────
 # ── 注册 ──────────────────────────────────────────────────────────────────────
 
 @router.post("/register", status_code=status.HTTP_201_CREATED,
@@ -51,10 +51,12 @@ async def register(
     try:
         result = await _auth_service.register(
             session, payload,
-            ip=_client_ip(request),
+            ip=get_client_ip(request),
             user_agent=request.headers.get("User-Agent", ""),
         )
         return ApiResponse.success(data=result, msg="注册成功")
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
@@ -70,10 +72,12 @@ async def confirm_totp(
     try:
         result = await _auth_service.confirm_totp(
             session, user_id, payload.code,
-            ip=_client_ip(request),
+            ip=get_client_ip(request),
             user_agent=request.headers.get("User-Agent", ""),
         )
         return ApiResponse.success(data=result, msg="绑定成功")
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
@@ -94,12 +98,14 @@ async def login(
     try:
         result = await _auth_service.combined_login(
             session, payload,
-            ip=_client_ip(request),
+            ip=get_client_ip(request),
             user_agent=request.headers.get("User-Agent", ""),
         )
         return ApiResponse.success(data=result, msg="登录成功")
-    except AuthFlowError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+    except PreconditionRequired as exc:
+        raise HTTPException(status_code=exc.code, detail=exc.data)
+    except AuthenticationError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
 
@@ -121,10 +127,12 @@ async def totp_login(
         result = await _auth_service.totp_login(
             session,
             payload,
-            ip=_client_ip(request),
+            ip=get_client_ip(request),
             user_agent=request.headers.get("User-Agent", ""),
         )
         return ApiResponse.success(data=result, msg="登录成功")
+    except AuthenticationError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
 
@@ -144,6 +152,8 @@ async def setup_totp(
     try:
         result = await _auth_service.setup_totp(session, user_id)
         return ApiResponse.success(data=result, msg="TOTP 初始化成功")
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
@@ -153,7 +163,7 @@ async def setup_totp(
 @router.get("/github", summary="跳转至 GitHub OAuth 授权页")
 async def github_login():
     """生成 state 后跳转至 GitHub OAuth 授权页面。"""
-    state = secrets.token_urlsafe(16)
+    state = generate_state_token()
     try:
         redirect_url = _auth_service.get_github_auth_url(state)
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
@@ -180,7 +190,7 @@ async def github_callback(
         token = await _auth_service.github_callback(
             session,
             code=code,
-            ip=_client_ip(request),
+            ip=get_client_ip(request),
             user_agent=request.headers.get("User-Agent", ""),
         )
 

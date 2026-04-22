@@ -6,7 +6,22 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
 
+from core import APIException
 from schema.response import ApiResponse
+
+
+
+async def api_exception_handler(request: Request, exc: APIException) -> JSONResponse:
+    """处理统一的 APIException，转为统一格式。"""
+    return JSONResponse(
+        status_code=exc.code,
+        content=ApiResponse.error(
+            msg=exc.msg,
+            code=exc.code,
+            data=exc.data,
+        ).model_dump(),
+    )
+
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:

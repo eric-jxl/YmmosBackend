@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from db import get_session
+from core import BadRequestError, ResourceNotFoundError
+from core import get_client_ip
 from schema.response import ApiResponse
 from schema.user import UserCreate, UserUpdate
 from service.user_service import UserService
@@ -42,7 +44,7 @@ async def list_users(
 async def get_user(user_id: int, session: AsyncSession = Depends(get_session)):
     user = await user_service.get_user(session, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+        raise ResourceNotFoundError(msg="用户不存在")
     return ApiResponse.success(data=user)
 
 
@@ -51,6 +53,8 @@ async def create_user(payload: UserCreate, session: AsyncSession = Depends(get_s
     try:
         result = await user_service.create_user(session, payload)
         return ApiResponse.success(data=result, msg="创建成功")
+    except BadRequestError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
@@ -64,8 +68,10 @@ async def update_user(
     try:
         user = await user_service.update_user(session, user_id, payload)
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+            raise ResourceNotFoundError(msg="用户不存在")
         return ApiResponse.success(data=user, msg="更新成功")
+    except BadRequestError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
@@ -74,5 +80,5 @@ async def update_user(
 async def delete_user(user_id: int, session: AsyncSession = Depends(get_session)):
     success = await user_service.delete_user(session, user_id)
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+        raise ResourceNotFoundError(msg="用户不存在")
 
